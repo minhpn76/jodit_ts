@@ -63,7 +63,7 @@ interface ImageSelectorCallbacks {
  * @constructor
  */
 export const FileSelectorWidget = (
-	editor: IJodit,
+	editor: any,
 	callbacks: ImageSelectorCallbacks,
 	elm: HTMLElement | null,
 	close: () => void,
