@@ -11,6 +11,7 @@ import {
 	Dom,
 	FileBrowser,
 	Observer,
+	Plugin,
 	Select,
 	StatusBar,
 	STATUSES
@@ -28,7 +29,8 @@ import {
 	resolveElement,
 	isVoid,
 	JoditArray,
-	JoditObject
+	JoditObject,
+	callPromise
 } from './core/helpers/';
 
 import { Storage } from './core/storage/';
@@ -48,15 +50,26 @@ import {
 	IUploader,
 	ICreate,
 	IFileBrowserCallBackData,
-	IStorage
+	IStorage,
+	CanPromise,
+	HTMLTagNames,
+	IViewBased,
+	IViewComponent
 } from './types';
 
 import { ViewWithToolbar } from './core/view/view-with-toolbar';
 
-import { instances, pluginSystem, modules, lang } from './core/global';
+import {
+	instances,
+	pluginSystem,
+	modules,
+	lang,
+	getContainer
+} from './core/global';
 import { cache } from './core/decorators';
+import autobind from 'autobind-decorator';
 
-declare const isProd: boolean;
+// declare const isProd: boolean;
 /**
  * Class Jodit. Main class
  */
@@ -142,7 +155,16 @@ export class Jodit extends ViewWithToolbar implements IJodit {
 
 	static decorators: IDictionary<Function> = {};
 	static instances: IDictionary<IJodit> = instances;
+	static getContainer: <T extends HTMLTagNames = HTMLTagNames>(
+		jodit: IViewBased | IViewComponent,
+		classFunc: Function,
+		tag: T,
+		inside: boolean
+	) => HTMLElementTagNameMap[T] = getContainer;
 	static lang: any = lang;
+	static core = {
+		Plugin
+	};
 
 	private __defaultStyleDisplayKey = 'data-jodit-default-style-display';
 	private __defaultClassesKey = 'data-jodit-default-classes';
@@ -609,7 +631,7 @@ export class Jodit extends ViewWithToolbar implements IJodit {
 
 		this.commands[commandName].push(command);
 
-		if (typeof command !== 'function') {
+		if (!isFunction(command)) {
 			const hotkeys: string | string[] | void =
 				this.o.commandToHotkeys[commandName] ||
 				this.o.commandToHotkeys[commandNameOriginal] ||
@@ -999,7 +1021,7 @@ export class Jodit extends ViewWithToolbar implements IJodit {
 	/**
 	 * Hook before init
 	 */
-	beforeInitHook(): void {
+	beforeInitHook(): CanPromise<void> {
 		// do nothing
 	}
 
@@ -1030,7 +1052,7 @@ export class Jodit extends ViewWithToolbar implements IJodit {
 	 * @param {object} options Editor's options
 	 */
 	constructor(element: HTMLElement | string, options?: object) {
-		super(options as IViewOptions);
+		super(options as IViewOptions, true);
 
 		try {
 			resolveElement(element, this.o.shadowRoot || this.od); // check element valid
@@ -1056,37 +1078,43 @@ export class Jodit extends ViewWithToolbar implements IJodit {
 			}
 		});
 
+		this.e.on('prepareWYSIWYGEditor', this.prepareWYSIWYGEditor);
+
 		this.selection = new Select(this);
 
-		this.initPlugins();
+		const beforeInitHookResult = this.beforeInitHook();
 
-		this.e.on('changePlace', () => {
-			this.setReadOnly(this.o.readonly);
-			this.setDisabled(this.o.disabled);
+		callPromise(beforeInitHookResult, (): void => {
+			this.e.fire('beforeInit', this);
+
+			const initPluginsResult = pluginSystem.init(this);
+
+			callPromise(initPluginsResult, () => {
+				this.e.on('changePlace', () => {
+					this.setReadOnly(this.o.readonly);
+					this.setDisabled(this.o.disabled);
+				});
+
+				this.places.length = 0;
+				const addPlaceResult = this.addPlace(element, options);
+
+				instances[this.id] = this;
+
+				const init = () => {
+					if (this.e) {
+						this.e.fire('afterInit', this);
+					}
+
+					this.afterInitHook();
+
+					this.setStatus(STATUSES.ready);
+
+					this.e.fire('afterConstructor', this);
+				};
+
+				callPromise(addPlaceResult, init);
+			});
 		});
-
-		this.places.length = 0;
-		const addPlaceResult = this.addPlace(element, options);
-
-		instances[this.id] = this;
-
-		const init = () => {
-			if (this.e) {
-				this.e.fire('afterInit', this);
-			}
-
-			this.afterInitHook();
-
-			this.setStatus(STATUSES.ready);
-
-			this.e.fire('afterConstructor', this);
-		};
-
-		if (isPromise(addPlaceResult)) {
-			addPlaceResult.finally(init);
-		} else {
-			init();
-		}
 	}
 
 	currentPlace!: IWorkPlace;
@@ -1257,22 +1285,6 @@ export class Jodit extends ViewWithToolbar implements IJodit {
 		}
 	}
 
-	private initPlugins(): void {
-		this.beforeInitHook();
-
-		this.e.fire('beforeInit', this);
-
-		try {
-			pluginSystem.init(this).catch(e => {
-				throw e;
-			});
-		} catch (e) {
-			if (!isProd) {
-				throw e;
-			}
-		}
-	}
-
 	private initEditor(buffer: null | string): void | Promise<any> {
 		const result = this.createEditor();
 
@@ -1365,8 +1377,6 @@ export class Jodit extends ViewWithToolbar implements IJodit {
 				css(this.editor, this.o.style);
 			}
 
-			const editor = this.editor;
-			// proxy events
 			this.e
 				.on('synchro', () => {
 					this.setEditorValue();
@@ -1374,53 +1384,16 @@ export class Jodit extends ViewWithToolbar implements IJodit {
 				.on('focus', () => {
 					this.editorIsActive = true;
 				})
-				.on('blur', () => (this.editorIsActive = false))
-				.on(editor, 'mousedown touchstart focus', () => {
-					const place = this.elementToPlace.get(editor);
-					if (place) {
-						this.setCurrentPlace(place);
-					}
-				})
-				.on(editor, 'compositionend', () => {
-					this.setEditorValue();
-				})
-				.on(
-					editor,
-					'selectionchange selectionstart keydown keyup keypress dblclick mousedown mouseup ' +
-						'click copy cut dragstart drop dragover paste resize touchstart touchend focus blur',
-					(event: Event): false | void => {
-						if (this.o.readonly) {
-							return;
-						}
-						if (
-							event instanceof KeyboardEvent &&
-							event.isComposing
-						) {
-							return;
-						}
+				.on('blur', () => (this.editorIsActive = false));
 
-						if (this.e && this.e.fire) {
-							if (this.e.fire(event.type, event) === false) {
-								return false;
-							}
-
-							this.setEditorValue();
-						}
-					}
-				);
-
-			if (this.o.spellcheck) {
-				this.editor.setAttribute('spellcheck', 'true');
-			}
+			this.prepareWYSIWYGEditor();
 
 			// direction
 			if (this.o.direction) {
 				const direction =
 					this.o.direction.toLowerCase() === 'rtl' ? 'rtl' : 'ltr';
 
-				this.editor.style.direction = direction;
 				this.container.style.direction = direction;
-				this.editor.setAttribute('dir', direction);
 				this.container.setAttribute('dir', direction);
 
 				this.toolbar.setDirection(direction);
@@ -1450,6 +1423,65 @@ export class Jodit extends ViewWithToolbar implements IJodit {
 	private attachEvents(options: IViewOptions) {
 		const e = options?.events;
 		e && Object.keys(e).forEach((key: string) => this.e.on(key, e[key]));
+	}
+
+
+	/**
+	 * Attach some native event listeners
+	 */
+	@autobind
+	private prepareWYSIWYGEditor() {
+		const { editor } = this;
+
+		if (this.o.spellcheck) {
+			this.editor.setAttribute('spellcheck', 'true');
+		}
+
+		// direction
+		if (this.o.direction) {
+			const direction =
+				this.o.direction.toLowerCase() === 'rtl' ? 'rtl' : 'ltr';
+
+			this.editor.style.direction = direction;
+			this.editor.setAttribute('dir', direction);
+		}
+
+		// proxy events
+		this.e
+			.on(editor, 'mousedown touchstart focus', () => {
+				const place = this.elementToPlace.get(editor);
+
+				if (place) {
+					this.setCurrentPlace(place);
+				}
+			})
+			.on(editor, 'compositionend', () => {
+				this.setEditorValue();
+			})
+			.on(
+				editor,
+				'selectionchange selectionstart keydown keyup keypress dblclick mousedown mouseup ' +
+				'click copy cut dragstart drop dragover paste resize touchstart touchend focus blur',
+				(event: Event): false | void => {
+
+					if (this.o.readonly) {
+						return;
+					}
+
+					const w = this.ew;
+					if (event instanceof (w as any).KeyboardEvent && (event as KeyboardEvent).isComposing) {
+						return;
+					}
+
+					if (this.e && this.e.fire) {
+						if (this.e.fire(event.type, event) === false) {
+							return false;
+						}
+
+						this.setEditorValue();
+					}
+				}
+			);
 	}
 
 	/**

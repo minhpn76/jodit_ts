@@ -4,8 +4,8 @@
  * Copyright (c) 2013-2020 Valeriy Chupurnov. All rights reserved. https://xdsoft.net
  */
 
-import { isFunction } from '../checker';
-import { IViewBased } from '../../../types';
+import { isFunction, isPromise } from '../checker';
+import { CanPromise, IViewBased } from '../../../types';
 
 /**
  * Call function with parameters
@@ -18,6 +18,7 @@ import { IViewBased } from '../../../types';
  * Jodit.modules.Helpers.call(f > 0.5 ? Math.ceil : Math.floor, f);
  * ```
  */
+
 export function call<T extends any[], R>(
 	func: (...args: T) => R,
 	...args: T
@@ -35,7 +36,7 @@ export function call<T extends any[], R>(
  * @param [value]
  */
 export function attr(
-	elm: HTMLElement | null,
+	elm: Element | null,
 	key: string,
 	value?: string | number | boolean | null
 ): null | string {
@@ -69,11 +70,19 @@ export function attr(
  * Mark element for debugging
  * @param elm
  */
-export function markOwner(jodit: IViewBased, elm: any): void {
+export function markOwner(jodit: IViewBased, elm: HTMLElement): void {
 	attr(elm, 'data-editor_id', jodit.id);
 
 	!elm.component &&
 		Object.defineProperty(elm, 'jodit', {
 			value: jodit
 		});
+}
+
+export function callPromise(condition: CanPromise<unknown>, callback: () => CanPromise<void>): CanPromise<void> {
+	if (isPromise(condition)) {
+		return condition.finally(callback);
+	} else {
+		return callback();
+	}
 }

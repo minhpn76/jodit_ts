@@ -9,6 +9,7 @@ import { IDictionary, IUIElement, IViewBased, Nullable } from '../../types';
 import { Dom } from '../dom';
 import { getClassName } from '../helpers/utils';
 
+
 export abstract class UIElement<T extends IViewBased = IViewBased>
 	extends ViewComponent<T>
 	implements IUIElement {
@@ -64,7 +65,7 @@ export abstract class UIElement<T extends IViewBased = IViewBased>
 	 */
 	// tslint:disable-next-line:ban-types
 	static closestElement(node: Node, type: Function): Nullable<IUIElement> {
-		const elm: any = Dom.up(node, node => {
+		const elm = Dom.up(node, node => {
 			if (node) {
 				const { component } = node as any;
 				return component && component instanceof type;
@@ -73,7 +74,7 @@ export abstract class UIElement<T extends IViewBased = IViewBased>
 			return false;
 		});
 
-		return elm ? elm?.component : null;
+		return elm ? elm?.component as IUIElement : null;
 	}
 
 	readonly mods: IDictionary<string | boolean | null> = {};
@@ -114,6 +115,14 @@ export abstract class UIElement<T extends IViewBased = IViewBased>
 	}
 
 	/**
+	 * Calc BEM element class name
+	 * @param elementName
+	 */
+	getClassName(elementName: string): string {
+		return `${this.componentName}__${elementName}`;
+	}
+
+	/**
 	 * Update UI from state
 	 */
 	update(): void {
@@ -137,16 +146,24 @@ export abstract class UIElement<T extends IViewBased = IViewBased>
 	}
 
 	/**
-	 * Create main HTML container
+	 * Method create only box
+	 * @param options
 	 */
-	protected createContainer(): HTMLElement {
+	protected makeContainer(options?: IDictionary): HTMLElement {
 		return this.j.c.div(this.componentName);
 	}
 
-	constructor(jodit: T) {
+	/**
+	 * Create main HTML container
+	 */
+	protected createContainer(options?: IDictionary): HTMLElement {
+		return this.makeContainer(options);
+	}
+
+	constructor(jodit: T, options?: IDictionary) {
 		super(jodit);
 
-		this.container = this.createContainer();
+		this.container = this.createContainer(options);
 
 		Object.defineProperty(this.container, 'component', {
 			value: this

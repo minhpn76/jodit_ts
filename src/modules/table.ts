@@ -22,26 +22,37 @@ import { ViewComponent } from '../core/component';
 import { getContainer } from '../core/global';
 import { debounce } from '../core/decorators';
 
+declare module '../config' {
+	interface Config {
+		table: {
+			allowCellSelection: boolean;
+			selectionCellStyle: string;
+
+			allowCellResize: boolean;
+			useExtraClassesOptions: boolean;
+		};
+	}
+}
+
 export class Table extends ViewComponent<IJodit> {
 	private selected: Set<HTMLTableCellElement> = new Set();
-	private static selectedByTable: WeakMap<
-		HTMLTableElement,
-		Set<HTMLTableCellElement>
-	> = new WeakMap();
+	private static selectedByTable: WeakMap<HTMLTableElement,
+		Set<HTMLTableCellElement>> = new WeakMap();
 
 	@debounce()
 	private recalculateStyles(): void {
-		const style: any = getContainer(this.j, Table, 'style', true);
+		const style = getContainer(this.j, Table, 'style', true);
 		const selectors: string[] = [];
+
 
 		this.selected.forEach(td => {
 			const selector = cssPath(td);
 			selector && selectors.push(selector);
 		});
-		let _o: any = this.j.o
 
+		// eslint-disable-next-line no-prototype-builtins
 		style.innerHTML = selectors.length
-			? selectors.join(',') + `{${_o?.table.selectionCellStyle}}`
+			? selectors.join(',') + `{${(this.jodit.options as any).table.selectionCellStyle}}`
 			: '';
 	}
 
@@ -277,7 +288,7 @@ export class Table extends ViewComponent<IJodit> {
 
 		if (after && line && line.nextSibling) {
 			line.parentNode &&
-				line.parentNode.insertBefore(row, line.nextSibling);
+			line.parentNode.insertBefore(row, line.nextSibling);
 		} else if (!after && line) {
 			line.parentNode && line.parentNode.insertBefore(row, line);
 		} else {
@@ -381,7 +392,7 @@ export class Table extends ViewComponent<IJodit> {
 				) {
 					if (td.nextSibling) {
 						td.parentNode &&
-							td.parentNode.insertBefore(cell, td.nextSibling);
+						td.parentNode.insertBefore(cell, td.nextSibling);
 					} else {
 						td.parentNode && td.parentNode.appendChild(cell);
 					}
@@ -393,7 +404,7 @@ export class Table extends ViewComponent<IJodit> {
 					(box[i][j] !== box[i][j - 1] && box[i][j].parentNode)
 				) {
 					td.parentNode &&
-						td.parentNode.insertBefore(cell, box[i][j]);
+					td.parentNode.insertBefore(cell, box[i][j]);
 					added = true;
 				}
 			}

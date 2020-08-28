@@ -5,22 +5,40 @@
  */
 
 const https = require('https');
+const path = require('path');
 
-const yandex_translate_api_key = process.argv[2];
+const { argv } = require('yargs')
+	.option('str', {
+		type: 'string',
+		required: true,
+		description: 'Translate sentence'
+	})
+	.option('ytak', {
+		type: 'string',
+		required: true,
+		description: 'Yandex Translate Api Key'
+	})
+	.option('dir', {
+		type: 'string',
+		default: path.resolve(process.cwd(), 'src/langs'),
+		description: 'Directory'
+	});
 
-if (!yandex_translate_api_key) {
+if (!argv.ytak) {
 	throw new Error(
 		'Need Yandex Translate API key. https://translate.yandex.com/developers/keys\n' +
 			'You can run it file: node ./src/utils/lang-translater.js %api_key%'
 	);
 }
 
+console.warn('Work directory:', argv.dir);
+
 const translate = async (text, lang) => {
 	return new Promise((resolve, reject) => {
 		https
 			.get(
 				`https://translate.yandex.net/api/v1.5/tr.json/translate?` +
-					`key=${yandex_translate_api_key}&text=${text}&lang=en-${lang}&format=plain`,
+					`key=${argv.ytak}&text=${text}&lang=en-${lang}&format=plain`,
 				res => {
 					res.on('data', d => {
 						const json = JSON.parse(d.toString());
@@ -40,9 +58,8 @@ const translate = async (text, lang) => {
 };
 
 const fs = require('fs');
-const path = require('path');
 
-const folder = path.resolve(__dirname, '../langs');
+const folder = path.resolve(path.resolve(__dirname, '../langs'));
 const files = fs.readdirSync(folder);
 
 const replace = {
@@ -52,37 +69,60 @@ const replace = {
 	pt_br: 'pt'
 };
 
+const header = fs.readFileSync(
+	path.resolve(process.cwd(), './src/header.js'),
+	'utf8'
+);
+
 const translateAll = text => {
-	files.forEach(async file => {
-		const filename = path.join(folder, file);
-		let lang = file.replace(/\.ts$/, '');
+	const langs = files
+		.map(file => {
+			let lang = file.replace(/\.(js|ts)$/, '');
+			const realLang = lang;
 
-		if (['index', 'en'].includes(lang)) {
-			return;
-		}
+			if (['index', 'en'].includes(lang)) {
+				return ['', file, realLang];
+			}
 
-		if (replace[lang]) {
-			lang = replace[lang];
-		}
+			if (replace[lang]) {
+				lang = replace[lang];
+			}
 
-		const data = fs.readFileSync(filename, 'utf-8');
+			return [lang, file, realLang];
+		})
+		.filter(([lang]) => lang);
 
-		const end = data.indexOf('} as IDictionary<string>;');
+	langs.forEach(async ([lang, file]) => {
+		const filepath = path.join(folder, file);
+		const newFilePath = path.join(
+			path.resolve(argv.dir),
+			path.parse(filepath).base
+		);
 
-		if (end !== -1) {
-			const translated = await translate(text, lang);
-			const newHash =
-				data.substring(0, end - 1) +
-				"\n\t'" +
-				text.replace(/'/g, "\\'") +
-				"': '" +
-				translated.replace(/'/g, "\\'") +
-				"',\n" +
-				data.substring(end);
+		const data = fs.existsSync(newFilePath) ? require(newFilePath) : {};
 
-			fs.writeFileSync(filename, newHash);
+		if (!data[text]) {
+			data[text] = await translate(text, lang);
+
+			fs.writeFileSync(
+				newFilePath,
+				`${header}\nmodule.exports = ${JSON.stringify(data, null, '\t')};`
+			);
 		}
 	});
+
+	const indexFile = path.join(path.resolve(argv.dir), 'index.ts');
+
+	if (!fs.existsSync(indexFile)) {
+		fs.writeFileSync(
+			indexFile,
+			`${header}\n${langs
+				.map(
+					([lang, file, realLang]) => `const ${realLang} = require('./${file}');\n`
+				)
+				.join('')}\nexport default {${langs.map(([,,lang]) => lang).join(',')}};`
+		);
+	}
 };
 
-translateAll('Apply');
+translateAll(argv.str);

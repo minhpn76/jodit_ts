@@ -142,12 +142,12 @@ export const cssPath = (el: Element): Nullable<string> => {
 		return null;
 	}
 
-	const path: any = [];
+	const path: string[] = [];
 
 	let start: Nullable<Element> = el;
 
 	while (start && start.nodeType === Node.ELEMENT_NODE) {
-		let selector: any = start.nodeName.toLowerCase();
+		let selector = start.nodeName.toLowerCase();
 
 		if (start.id) {
 			selector += '#' + start.id;

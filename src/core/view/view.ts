@@ -28,8 +28,6 @@ import { Async } from '../async';
 import { modules } from '../global';
 import { hook } from '../decorators';
 
-declare const appVersion: string;
-
 export abstract class View extends Component implements IViewBased {
 	readonly isView: true = true;
 
@@ -198,7 +196,7 @@ export abstract class View extends Component implements IViewBased {
 	 */
 	protected initOwners(): void {}
 
-	constructor(options?: IViewOptions) {
+	constructor(options?: IViewOptions, readonly isJodit: boolean = false) {
 		super();
 
 		this.id = new Date().getTime().toString();

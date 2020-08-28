@@ -5,6 +5,7 @@
  */
 
 export * from '../core/events';
+export { Async } from '../core/async';
 export { Ajax } from '../core/ajax';
 export { Component, ViewComponent, STATUSES } from '../core/component';
 export { ContextMenu } from './context-menu/context-menu';
@@ -12,7 +13,20 @@ export { Alert, Confirm, Prompt, Dialog } from './dialog/';
 export { Dom } from '../core/dom';
 export { Plugin } from '../core/plugin';
 export { Create } from '../core/create';
-export { UIElement, UIButton, Popup, UISeparator, UIGroup, UIList, Icon } from '../core/ui';
+export {
+	UIElement,
+	UIButton,
+	Popup,
+	UISeparator,
+	UIGroup,
+	UIList,
+	UIForm,
+	UIInput,
+	UITextArea,
+	UICheckbox,
+	UIBlock,
+	Icon
+} from '../core/ui';
 export { View } from '../core/view/view';
 export { ViewWithToolbar } from '../core/view/view-with-toolbar';
 export { FileBrowser } from './file-browser/file-browser';

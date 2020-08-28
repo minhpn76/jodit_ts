@@ -10,13 +10,13 @@ import { defaultLanguage as defineLanguage } from '../default-language';
 import { ucfirst, isString, error } from '../index';
 import { lang } from '../../global';
 
-declare const isProd: boolean;
 /**
  * Simple variant sprintf function
  *
  * @param str
  * @param args
  */
+// declare const isProd: boolean;
 export const sprintf = (str: string, args?: Array<string | number>): string => {
 	if (!args || !args.length) {
 		return str;

@@ -15,17 +15,19 @@ export const SPACE_REG_EXP = (): RegExp => /[\s\n\t\r\uFEFF\u200b]+/g;
 export const SPACE_REG_EXP_START = (): RegExp => /^[\s\n\t\r\uFEFF\u200b]+/g;
 export const SPACE_REG_EXP_END = (): RegExp => /[\s\n\t\r\uFEFF\u200b]+$/g;
 
-export const IS_BLOCK = /^(SCRIPT|IFRAME|JODIT|JODIT-MEDIA|PRE|DIV|P|LI|UL|OL|H[1-6]|BLOCKQUOTE|TD|TH|TABLE|BODY|HTML|FIGCAPTION|FIGURE|DT|DD)$/i;
+export const IS_BLOCK = /^(ARTICLE|SCRIPT|IFRAME|JODIT|JODIT-MEDIA|PRE|DIV|P|LI|UL|OL|H[1-6]|BLOCKQUOTE|TR|TD|TH|TBODY|THEAD|TABLE|BODY|HTML|FIGCAPTION|FIGURE|DT|DD|DL|DFN)$/i;
 export const IS_INLINE = /^(STRONG|SPAN|I|EM|B|SUP|SUB)$/i;
 
 export const INSEPARABLE_TAGS: Array<keyof HTMLElementTagNameMap> = [
 	'img',
 	'br',
+	'video',
 	'iframe',
 	'script',
 	'input',
 	'textarea',
 	'hr',
+	'link',
 	'jodit',
 	'jodit-media'
 ];
@@ -95,7 +97,6 @@ export const IS_IE =
 /**
  * @property {string} TEXT_PLAIN='text/plain'  For IE11 it will be 'text'. Need for dataTransfer.setData
  */
-export const URL_LIST = IS_IE ? 'url' : 'text/uri-list';
 export const TEXT_PLAIN = IS_IE ? 'text' : 'text/plain';
 export const TEXT_HTML = IS_IE ? 'text' : 'text/html';
 
@@ -104,7 +105,7 @@ export const MARKER_CLASS = 'jodit-selection_marker';
 export const EMULATE_DBLCLICK_TIMEOUT = 300;
 
 export const INSERT_AS_HTML = 'insert_as_html';
-export const INSERT_CLEAR_HTML = 'insert_clear_html';
+export const 	INSERT_CLEAR_HTML = 'insert_clear_html';
 export const INSERT_AS_TEXT = 'insert_as_text';
 export const INSERT_ONLY_TEXT = 'insert_only_text';
 

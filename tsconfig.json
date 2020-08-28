@@ -1,6 +1,6 @@
 {
 	"compilerOptions": {
-		"target": "es2015",
+		"target": "es5",
 		"moduleResolution": "node",
 
 		"removeComments": true,
@@ -17,6 +17,7 @@
 		"noImplicitReturns": true,
 		"noUnusedLocals": true,
 		"noImplicitThis": true,
+		"resolveJsonModule": true,
 
 		"forceConsistentCasingInFileNames": true,
 
@@ -26,6 +27,5 @@
 
 		"lib": ["es5", "esnext", "dom", "scripthost"]
 	},
-
 	"exclude": ["build"]
 }

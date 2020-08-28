@@ -11,7 +11,9 @@ import {
 	IPlugin,
 	IPluginSystem,
 	PluginInstance,
-	PluginType
+	PluginType,
+	CanPromise,
+	CanUndef
 } from '../types';
 
 import {
@@ -21,10 +23,12 @@ import {
 	appendScriptAsync,
 	splitArray,
 	appendStyleAsync,
-	isString
+	isString,
+	kebabCase,
+	callPromise,
+	isArray
 } from './helpers';
 
-declare const isProd: boolean;
 /**
  * Jodit plugin system
  * @example
@@ -70,10 +74,10 @@ export class PluginSystem implements IPluginSystem {
 	 * Public methos for async init all plugins
 	 * @param jodit
 	 */
-	async init(jodit: IJodit): Promise<void> {
-		const extrasList: IExtraPlugin[] = jodit.o.extraPlugins.map(s => {
-				return isString(s) ? { name: s.toLowerCase() } : s;
-			}),
+	init(jodit: IJodit): CanPromise<void> {
+		const extrasList: IExtraPlugin[] = jodit.o.extraPlugins.map(s =>
+				isString(s) ? { name: s } : s
+			),
 			disableList = splitArray(jodit.o.disablePlugins).map(s =>
 				s.toLowerCase()
 			),
@@ -90,6 +94,18 @@ export class PluginSystem implements IPluginSystem {
 					return;
 				}
 
+				const requires = (plugin as any)?.requires as CanUndef<
+					string[]
+				>;
+
+				if (
+					requires &&
+					isArray(requires) &&
+					this.hasDisabledRequires(disableList, requires)
+				) {
+					return;
+				}
+
 				const instance = PluginSystem.makePluginInstance(jodit, plugin);
 
 				this.initOrWait(jodit, name, instance, doneList, promiseList);
@@ -98,31 +114,34 @@ export class PluginSystem implements IPluginSystem {
 				pluginsMap[name] = instance;
 			};
 
-		if (extrasList && extrasList.length) {
-			try {
-				const needLoadExtras = extrasList.filter(
-					extra => !this.items.has(extra.name)
-				);
+		const resultLoadExtras = this.loadExtras(jodit, extrasList);
 
-				if (needLoadExtras.length) {
-					await this.load(jodit, needLoadExtras);
-				}
-			} catch (e) {
-				if (!isProd) {
-					throw e;
-				}
+		return callPromise(resultLoadExtras, () => {
+			if (jodit.isInDestruct) {
+				return;
 			}
-		}
 
-		if (jodit.isInDestruct) {
-			return;
-		}
+			this.items.forEach(makeAndInit);
 
-		this.items.forEach(makeAndInit);
+			this.addListenerOnBeforeDestruct(jodit, plugins);
 
-		this.addListenerOnBeforeDestruct(jodit, plugins);
+			(jodit as any).__plugins = pluginsMap;
+		});
+	}
 
-		(jodit as any).__plugins = pluginsMap;
+	/**
+	 * Plugin type has disabled requires
+	 * @param disableList
+	 * @param requires
+	 */
+	private hasDisabledRequires(
+		disableList: string[],
+		requires: string[]
+	): boolean {
+		return Boolean(
+			requires?.length &&
+				disableList.some(disabled => requires.includes(disabled))
+		);
 	}
 
 	/**
@@ -163,8 +182,7 @@ export class PluginSystem implements IPluginSystem {
 				const req = (plugin as IPlugin).requires;
 
 				if (
-					!req ||
-					!req.length ||
+					!req?.length ||
 					req.every(name => doneList.includes(name))
 				) {
 					plugin.init(jodit);
@@ -235,7 +253,8 @@ export class PluginSystem implements IPluginSystem {
 		return Promise.all(
 			pluginList.map(extra => {
 				const url =
-					extra.url || PluginSystem.getFullUrl(jodit, name, true);
+					extra.url ||
+					PluginSystem.getFullUrl(jodit, extra.name, true);
 
 				return reflect(appendScriptAsync(jodit, url));
 			})
@@ -267,6 +286,8 @@ export class PluginSystem implements IPluginSystem {
 		name: string,
 		js: boolean
 	): string {
+		name = kebabCase(name);
+
 		return (
 			jodit.basePath +
 			'plugins/' +
@@ -276,5 +297,26 @@ export class PluginSystem implements IPluginSystem {
 			'.' +
 			(js ? 'js' : 'css')
 		);
+	}
+
+	private loadExtras(
+		jodit: IJodit,
+		extrasList: IExtraPlugin[]
+	): CanPromise<void> {
+		if (extrasList && extrasList.length) {
+			try {
+				const needLoadExtras = extrasList.filter(
+					extra => !this.items.has(extra.name)
+				);
+
+				if (needLoadExtras.length) {
+					return this.load(jodit, needLoadExtras);
+				}
+			} catch (e) {
+				if (!isProd) {
+					throw e;
+				}
+			}
+		}
 	}
 }

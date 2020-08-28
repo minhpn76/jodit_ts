@@ -29,7 +29,7 @@ export class ToolbarCollection<T extends IViewBased = IViewBased>
 	jodit!: T;
 
 	readonly listenEvents =
-		'changeStack mousedown mouseup keydown change afterInit readonly afterResize ' +
+		'updateToolbar changeStack mousedown mouseup keydown change afterInit readonly afterResize ' +
 		'selectionchange changeSelection focus afterSetMode touchstart focus blur';
 
 	/**
@@ -106,7 +106,7 @@ export class ToolbarCollection<T extends IViewBased = IViewBased>
 
 		super.update();
 
-		this.j.e.fire('updateToolbar');
+		this.j.e.fire('afterUpdateToolbar');
 	}
 
 	update = this.j.async.debounce(this.immediateUpdate, this.j.defaultTimeout);

@@ -20,7 +20,6 @@ import {
 	ISourcesFiles,
 	IFileBrowserState,
 	IFileBrowserItem,
-	IFileBrowserFolder,
 	IFileBrowserDataProvider,
 	IJodit,
 	IStorage,
@@ -48,6 +47,7 @@ import autobind from 'autobind-decorator';
 import { stateListeners } from './listeners/state-listeners';
 import { nativeListeners } from './listeners/native-listeners';
 import { selfListeners } from './listeners/self-listeners';
+import { DEFAULT_SOURCE_NAME } from './data-provider';
 
 export class FileBrowser extends ViewWithToolbar implements IFileBrowser {
 	private loader = this.c.div(F_CLASS + '__loader', ICON_LOADER);
@@ -58,9 +58,13 @@ export class FileBrowser extends ViewWithToolbar implements IFileBrowser {
 	files = this.c.div(F_CLASS + '__files');
 
 	state = ObserveObject.create<IFileBrowserState>({
+		currentPath: '',
+		currentSource: DEFAULT_SOURCE_NAME,
+		currentBaseUrl: '',
+
 		activeElements: [],
 		elements: [],
-		folders: [],
+		sources: {},
 		view: 'tiles',
 		sortBy: 'changed-desc',
 		filterWord: '',
@@ -69,15 +73,12 @@ export class FileBrowser extends ViewWithToolbar implements IFileBrowser {
 
 	dataProvider!: IFileBrowserDataProvider;
 
-	async loadItems(
-		path: string = this.dataProvider.currentPath,
-		source: string = this.dataProvider.currentSource
-	): Promise<any> {
+	async loadItems(): Promise<any> {
 		this.files.classList.add('jodit-filebrowser_active');
 		this.files.appendChild(this.loader.cloneNode(true));
 
 		return this.dataProvider
-			.items(path, source)
+			.items(this.state.currentPath, this.state.currentSource)
 			.then(resp => {
 				let process:
 					| ((resp: IFileBrowserAnswer) => IFileBrowserAnswer)
@@ -105,38 +106,40 @@ export class FileBrowser extends ViewWithToolbar implements IFileBrowser {
 	}
 
 	async loadTree(): Promise<any> {
-		const path: string = this.dataProvider.currentPath,
-			source: string = this.dataProvider.currentSource,
+		const
 			errorUni = (e: string | Error) => {
 				throw e instanceof Error ? e : error(e);
 			};
 
 		if (this.uploader) {
-			this.uploader.setPath(path);
-			this.uploader.setSource(source);
+			this.uploader.setPath(this.state.currentPath);
+			this.uploader.setSource(this.state.currentSource);
 		}
 
 		this.tree.classList.add('jodit-filebrowser_active');
 		Dom.detach(this.tree);
 		this.tree.appendChild(this.loader.cloneNode(true));
+		const items = this.loadItems();
 
 		if (this.o.showFoldersPanel) {
 			const tree = this.dataProvider
-				.tree(path, source)
+				.tree(this.state.currentPath, this.state.currentSource)
 				.then(resp => {
 					let process:
 						| ((resp: IFileBrowserAnswer) => IFileBrowserAnswer)
 						| undefined = (this.o.folder as any).process;
+
 					if (!process) {
 						process = this.o.ajax.process;
 					}
+
 					if (process) {
 						const respData = process.call(
 							self,
 							resp
 						) as IFileBrowserAnswer;
 
-						this.generateFolderTree(respData.data.sources);
+						this.state.sources = respData.data.sources;
 					}
 				})
 				.catch(e => {
@@ -147,17 +150,18 @@ export class FileBrowser extends ViewWithToolbar implements IFileBrowser {
 					errorUni(e);
 				});
 
-			const items = this.loadItems(path, source);
 
 			return Promise.all([tree, items]).catch(error);
 		} else {
 			this.tree.classList.remove('jodit-filebrowser_active');
 		}
+
+		return items.catch(error);
 	}
 
 	async deleteFile(name: string, source: string): Promise<any> {
 		return this.dataProvider
-			.fileRemove(this.dataProvider.currentPath, name, source)
+			.fileRemove(this.state.currentPath, name, source)
 			.then(resp => {
 				if (this.o.remove && this.o.remove.process) {
 					resp = this.o.remove.process.call(this, resp);
@@ -174,22 +178,6 @@ export class FileBrowser extends ViewWithToolbar implements IFileBrowser {
 				}
 			})
 			.catch(this.status);
-	}
-
-	private generateFolderTree(sources: ISourcesFiles) {
-		const folders: IFileBrowserFolder[] = [];
-
-		each<ISource>(sources, (source_name, source) => {
-			source.folders.forEach((name: string) => {
-				folders.push({
-					name,
-					source,
-					sourceName: source_name
-				});
-			});
-		});
-
-		this.state.folders = folders;
 	}
 
 	private generateItemsList(sources: ISourcesFiles) {
@@ -494,8 +482,8 @@ export class FileBrowser extends ViewWithToolbar implements IFileBrowser {
 		};
 
 		self.uploader = self.getInstance('Uploader', uploaderOptions);
-		self.uploader.setPath(self.dataProvider.currentPath);
-		self.uploader.setSource(self.dataProvider.currentSource);
+		self.uploader.setPath(self.state.currentPath);
+		self.uploader.setSource(self.state.currentSource);
 		self.uploader.bind(self.browser, uploadHandler, self.errorHandler);
 
 		self.e.on('bindUploader.filebrowser', (button: HTMLElement) => {
